@@ -2,6 +2,8 @@ package com.bookshelf.user.config;
 
 import com.bookshelf.user.service.UserService;
 import lombok.RequiredArgsConstructor;
+import net.devh.boot.grpc.server.security.authentication.AnonymousAuthenticationReader;
+import net.devh.boot.grpc.server.security.authentication.GrpcAuthenticationReader;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -49,5 +51,12 @@ public class SecurityConfig {
     @Bean
     public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
         return config.getAuthenticationManager();
+    }
+
+    // gRPC calls come from internal services on the private network — no auth needed.
+    // For public deployments replace this with mTLS or a token-based reader.
+    @Bean
+    public GrpcAuthenticationReader grpcAuthenticationReader() {
+        return new AnonymousAuthenticationReader("anonymous");
     }
 }
