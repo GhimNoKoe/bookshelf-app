@@ -4,6 +4,7 @@ import com.bookshelf.shelf.dto.CreateShelfRequest;
 import com.bookshelf.shelf.dto.ShelfDto;
 import com.bookshelf.shelf.model.Shelf;
 import com.bookshelf.shelf.model.ShelfBook;
+import com.bookshelf.shelf.model.ShelfType;
 import com.bookshelf.shelf.repository.ShelfBookRepository;
 import com.bookshelf.shelf.repository.ShelfRepository;
 import lombok.RequiredArgsConstructor;
@@ -21,10 +22,25 @@ public class ShelfService {
     private final ShelfRepository shelfRepository;
     private final ShelfBookRepository shelfBookRepository;
 
+    @Transactional
     public List<ShelfDto> getShelvesByUser(String userId) {
+        if (shelfRepository.findByUserId(userId).isEmpty()) {
+            createDefaultShelves(userId);
+        }
         return shelfRepository.findByUserId(userId).stream()
                 .map(this::toDto)
                 .toList();
+    }
+
+    private void createDefaultShelves(String userId) {
+        List<Shelf> defaults = ShelfType.getDefaults().stream()
+                .map(type -> Shelf.builder()
+                        .userId(userId)
+                        .name(type.getDisplayName())
+                        .shelfType(type)
+                        .build())
+                .toList();
+        shelfRepository.saveAll(defaults);
     }
 
     public ShelfDto getShelf(String shelfId, String userId) {
@@ -37,7 +53,11 @@ public class ShelfService {
         if (shelfRepository.existsByUserIdAndName(userId, request.name())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Shelf name already exists");
         }
-        Shelf shelf = Shelf.builder().userId(userId).name(request.name()).build();
+        Shelf shelf = Shelf.builder()
+                .userId(userId)
+                .name(request.name())
+                .shelfType(ShelfType.CUSTOM)
+                .build();
         return toDto(shelfRepository.save(shelf));
     }
 
@@ -63,6 +83,9 @@ public class ShelfService {
     @Transactional
     public void deleteShelf(String shelfId, String userId) {
         Shelf shelf = findAndAuthorize(shelfId, userId);
+        if (shelf.getShelfType().isDefault()) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Default shelves cannot be deleted");
+        }
         shelfRepository.delete(shelf);
     }
 
@@ -81,7 +104,14 @@ public class ShelfService {
         List<String> bookIds = shelf.getBooks().stream()
                 .map(ShelfBook::getBookId)
                 .toList();
-        return new ShelfDto(shelf.getId(), shelf.getUserId(), shelf.getName(), bookIds, shelf.getCreatedAt());
+        return ShelfDto.builder()
+                .id(shelf.getId())
+                .userId(shelf.getUserId())
+                .name(shelf.getName())
+                .shelfType(shelf.getShelfType())
+                .bookIds(bookIds)
+                .createdAt(shelf.getCreatedAt())
+                .build();
     }
 
     public Shelf findById(String shelfId) {

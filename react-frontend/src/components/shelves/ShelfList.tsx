@@ -56,7 +56,9 @@ export default function ShelfList() {
         {shelves.map(shelf => (
           <li key={shelf.id} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
             <Link to={`/shelves/${shelf.id}`}>{shelf.name} ({shelf.bookIds.length} books)</Link>
-            <button onClick={() => deleteMutation.mutate(shelf.id)}>Delete</button>
+            {shelf.shelfType === 'CUSTOM' && (
+              <button onClick={() => deleteMutation.mutate(shelf.id)}>Delete</button>
+            )}
           </li>
         ))}
       </ul>

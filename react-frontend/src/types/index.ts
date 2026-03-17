@@ -10,10 +10,13 @@ export interface User {
   email: string;
 }
 
+export type ShelfType = 'READ' | 'CURRENTLY_READING' | 'OWNED' | 'WISH_LIST' | 'CUSTOM';
+
 export interface Shelf {
   id: string;
   userId: string;
   name: string;
+  shelfType: ShelfType;
   bookIds: string[];
   createdAt: string;
 }

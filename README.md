@@ -66,6 +66,18 @@ docker compose up --build
 
 ## Local Development
 
+### Quick start
+
+**Windows:**
+```bat
+dev-start.bat
+```
+**Linux (requires tmux):**
+```bash
+chmod +x dev-start.sh && ./dev-start.sh
+```
+Both scripts start the databases via Docker, wait 10 s, then launch each service in a separate window / tmux pane.
+
 ### Prerequisites
 - Java 21
 - Maven 3.9+
@@ -116,7 +128,7 @@ The Vite dev-server proxies `/api/*` to the correct back-end service automatical
 | GET  | `/api/shelves` | JWT | List user's shelves |
 | POST | `/api/shelves` | JWT | Create shelf |
 | GET  | `/api/shelves/{id}` | JWT | Get shelf |
-| DELETE | `/api/shelves/{id}` | JWT | Delete shelf |
+| DELETE | `/api/shelves/{id}` | JWT | Delete shelf (403 for default shelves) |
 | POST | `/api/shelves/{id}/books` | JWT | Add book to shelf |
 | DELETE | `/api/shelves/{id}/books/{bookId}` | JWT | Remove book |
 
@@ -169,7 +181,24 @@ Each service has Flyway migrations under `src/main/resources/db/migration/`.
 |---------|-----------|----------------|
 | user-service | V1__create_users_table.sql | `users` |
 | shelf-service | V1__create_shelves_table.sql | `shelves`, `shelf_books` |
+|               | V2__add_is_default_to_shelves.sql | adds `shelf_type` column |
 | review-service | V1__create_reviews_table.sql | `reviews` |
+
+---
+
+## Default Shelves
+
+On first load, shelf-service automatically creates four default shelves for each user:
+
+| Enum value | Display name | Purpose |
+|---|---|---|
+| `READ` | Read | Books finished |
+| `CURRENTLY_READING` | Currently Reading | Books in progress |
+| `OWNED` | Owned | Books owned but not yet started |
+| `WISH_LIST` | Wish List | Books to buy |
+
+Custom shelves created by the user have type `CUSTOM` and can be freely deleted.
+Default shelves are permanent and will drive future workflow features.
 
 ---
 

@@ -28,6 +28,10 @@ public class Shelf {
     @Column(nullable = false, length = 100)
     private String name;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "shelf_type", nullable = false, length = 30)
+    private ShelfType shelfType = ShelfType.CUSTOM;
+
     @OneToMany(mappedBy = "shelf", cascade = CascadeType.ALL, fetch = FetchType.LAZY, orphanRemoval = true)
     @Builder.Default
     private List<ShelfBook> books = new ArrayList<>();
