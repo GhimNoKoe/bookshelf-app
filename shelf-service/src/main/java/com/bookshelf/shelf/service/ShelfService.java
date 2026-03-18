@@ -67,9 +67,8 @@ public class ShelfService {
         if (shelfBookRepository.existsByShelfIdAndBookId(shelfId, bookId)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Book already on shelf");
         }
-        ShelfBook entry = ShelfBook.builder().shelf(shelf).bookId(bookId).build();
-        shelfBookRepository.save(entry);
-        return toDto(shelfRepository.findById(shelfId).orElseThrow());
+        shelf.addBook(bookId);
+        return toDto(shelfRepository.save(shelf));
     }
 
     @Transactional

@@ -169,7 +169,55 @@ bookshelf-app/
 | protobuf-java | 3.25.2 | Protocol Buffers |
 | jjwt | 0.12.5 | JWT (user-service) |
 | Flyway | (managed) | DB migrations |
+| H2 | (managed) | In-memory DB for tests |
 | TanStack Query | 5 | Data fetching (frontend) |
+
+---
+
+## Testing
+
+### Running tests
+
+```bash
+# single service
+cd user-service   && mvn test
+cd shelf-service  && mvn test
+cd review-service && mvn test
+```
+
+### Test stack
+
+| Tool | Role |
+|------|------|
+| JUnit 5 | Test runner |
+| Mockito | Mocking for unit tests |
+| Spring Boot Test (`@SpringBootTest`) | Integration / controller tests |
+| H2 (in-memory) | Replaces PostgreSQL in test scope |
+| Flyway | Runs real migrations against H2 on every test run |
+
+### Test layers
+
+Each service has two layers of tests:
+
+**Unit tests** — pure Mockito, no Spring context, no database. Cover service business logic and gRPC service/client implementations.
+
+**Controller / integration tests** — `@SpringBootTest` + `@AutoConfigureMockMvc` + H2. The full Spring context loads (security, filters, real service + repository layers). Only external gRPC calls are mocked:
+
+| Service | Mocked in controller tests |
+|---------|---------------------------|
+| user-service | nothing — JWT is validated locally |
+| shelf-service | `UserGrpcClient` (token validation) |
+| review-service | `UserGrpcClient` (token validation), `ShelfGrpcClient` (verified-reader check) |
+
+Tests are `@Transactional` — each test rolls back automatically, no manual cleanup needed.
+
+### Test configuration
+
+Test-specific properties live in each service's `src/test/resources/application.yml`. They override the main config with H2 datasource, `ddl-auto: validate`, `show-sql: true`, and gRPC server disabled (`port: -1`).
+
+### TDD rules
+
+This project follows strict TDD. See [CLAUDE.md](CLAUDE.md) for the full rules.
 
 ---
 

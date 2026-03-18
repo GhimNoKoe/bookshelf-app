@@ -40,6 +40,10 @@ public class Shelf {
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
+    public void addBook(String bookId) {
+        books.add(ShelfBook.builder().shelf(this).bookId(bookId).build());
+    }
+
     @PrePersist
     protected void onCreate() {
         if (this.id == null) {

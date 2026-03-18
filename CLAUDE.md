@@ -2,6 +2,15 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## TDD Rules — STRICTLY FOLLOW
+
+- NEVER write implementation and tests in the same step
+- NEVER modify tests to make them pass
+- NEVER write implementation code before tests exist and are confirmed failing
+- Tests are the specification — if tests fail, fix the implementation, not the tests
+- Always run tests after writing them and confirm they fail before implementing
+- If you think a test is wrong, ask me first — never change it silently
+
 ## Architecture Overview
 
 This is a microservices bookshelf application with three Java Spring Boot backend services, a React TypeScript frontend, and three separate PostgreSQL databases.
