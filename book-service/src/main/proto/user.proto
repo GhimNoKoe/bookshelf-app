@@ -1,0 +1,32 @@
+syntax = "proto3";
+
+package user;
+
+option java_package = "com.bookshelf.grpc.user";
+option java_outer_classname = "UserProto";
+option java_multiple_files = true;
+
+service UserService {
+  rpc GetUser (GetUserRequest) returns (UserResponse);
+  rpc ValidateToken (ValidateTokenRequest) returns (ValidateTokenResponse);
+}
+
+message GetUserRequest {
+  string user_id = 1;
+}
+
+message UserResponse {
+  string user_id = 1;
+  string username = 2;
+  string email = 3;
+}
+
+message ValidateTokenRequest {
+  string token = 1;
+}
+
+message ValidateTokenResponse {
+  bool valid = 1;
+  string user_id = 2;
+  string username = 3;
+}

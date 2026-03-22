@@ -1,0 +1,32 @@
+syntax = "proto3";
+
+package book;
+
+option java_package = "com.bookshelf.grpc.book";
+option java_outer_classname = "BookProto";
+option java_multiple_files = true;
+
+service BookService {
+  rpc GetBook (GetBookRequest) returns (BookResponse);
+  rpc ListBooks (ListBooksRequest) returns (BooksResponse);
+}
+
+message GetBookRequest {
+  string book_id = 1;
+}
+
+message ListBooksRequest {}
+
+message BookResponse {
+  string book_id = 1;
+  string owner_id = 2;
+  string title = 3;
+  string author = 4;
+  string book_type = 5;
+  string eshop_url = 6;
+  string private_file_key = 7;
+}
+
+message BooksResponse {
+  repeated BookResponse books = 1;
+}

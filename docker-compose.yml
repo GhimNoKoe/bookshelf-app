@@ -6,6 +6,7 @@ volumes:
   postgres-user-data:
   postgres-shelf-data:
   postgres-review-data:
+  postgres-book-data:
 
 services:
 
@@ -64,6 +65,25 @@ services:
       - bookshelf-net
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d reviewdb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  postgres-book:
+    image: postgres:16-alpine
+    container_name: postgres-book
+    environment:
+      POSTGRES_DB: bookdb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - postgres-book-data:/var/lib/postgresql/data
+    ports:
+      - "5436:5432"
+    networks:
+      - bookshelf-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d bookdb"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -145,6 +165,32 @@ services:
       user-service:
         condition: service_started
       shelf-service:
+        condition: service_started
+    networks:
+      - bookshelf-net
+
+  book-service:
+    build:
+      context: ./book-service
+      dockerfile: Dockerfile
+    container_name: book-service
+    environment:
+      DB_HOST: postgres-book
+      DB_PORT: 5432
+      DB_NAME: bookdb
+      DB_USER: postgres
+      DB_PASS: postgres
+      GRPC_PORT: 9093
+      SERVER_PORT: 8083
+      USER_SERVICE_GRPC_HOST: user-service
+      USER_SERVICE_GRPC_PORT: 9090
+    ports:
+      - "8083:8083"
+      - "9093:9093"
+    depends_on:
+      postgres-book:
+        condition: service_healthy
+      user-service:
         condition: service_started
     networks:
       - bookshelf-net

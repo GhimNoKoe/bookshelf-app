@@ -1,30 +1,29 @@
 # TODO
 
-## Next session — gRPC test gaps
+## Up next
 
-Three gRPC test files are missing. Follow the same pattern as `UserGrpcServiceTest`.
+### File upload for ebooks
+`book-service` — the `private_file_key` field exists on the `books` table but there is no upload/download API yet.
 
-### 1. ShelfGrpcServiceTest
-`shelf-service/src/test/java/com/bookshelf/shelf/grpc/ShelfGrpcServiceTest.java`
+- Decide on storage backend (Azure Blob Storage / S3 / local volume)
+- Add `POST /api/books/{id}/file` — upload ebook file (owner only)
+- Add `GET  /api/books/{id}/file` — download ebook file (owner only)
+- Store the blob key in `private_file_key`
+- Add a file-service or integrate storage directly into book-service
 
-RPCs to cover:
-- `getShelf` — success (shelf found), error (shelf not found → onError)
-- `getShelvesByUser` — success, error (service throws)
-- `addBookToShelf` — success, error
+### Kindle delivery
+- Add `kindle_email` to the user profile (user-service migration + endpoint)
+- Implement send-to-Kindle from a book entry (book-service or new delivery-service)
+- Only the book owner (or a family admin) can trigger a send
 
-### 2. ReviewGrpcServiceTest
-`review-service/src/test/java/com/bookshelf/review/grpc/ReviewGrpcServiceTest.java`
+### Family / user management
+- Remove open self-registration — admin creates accounts manually
+- Add admin role to user-service
+- Invite flow or simple admin UI for adding family members
 
-RPCs to cover:
-- `getReviewsByBook` — success
-- `getReviewsByUser` — success
-- `createReview` — success
+---
 
-### 3. UserGrpcClientTest (review-service)
-`review-service/src/test/java/com/bookshelf/review/grpc/UserGrpcClientTest.java`
+## Done
 
-Methods to cover:
-- `validateToken` — valid response, gRPC error returns invalid response
-- `getUser` — success
-
-Use `ReflectionTestUtils.setField` to inject the mock stub, same approach as `ShelfGrpcClientTest`.
+- **gRPC test gaps** — `ShelfGrpcServiceTest`, `ReviewGrpcServiceTest`, `UserGrpcClientTest` (review-service) all implemented and passing
+- **book-service** — full catalog service: Book entity (PAPER/EBOOK, eshopUrl, privateFileKey), shared pool, ownership enforcement, REST CRUD, gRPC GetBook/ListBooks, 28 tests passing
