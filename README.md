@@ -144,7 +144,9 @@ The Vite dev-server proxies `/api/*` to the correct back-end service automatical
 
 Reviews are automatically tagged as **verified reader** when the book is present on any of the reviewer's shelves (checked via gRPC to shelf-service at write time).
 
-### book-service (`/api/books`)
+### book-service (`/api/books`, `/api/authors`, `/api/series`, `/api/sub-series`)
+
+**Books**
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
@@ -158,11 +160,43 @@ Reviews are automatically tagged as **verified reader** when the book is present
 
 | Field | Type | Notes |
 |-------|------|-------|
-| `title` | string | required |
-| `author` | string | required |
+| `title` | string | required — Polish/primary title |
+| `originalTitle` | string | optional — original-language title |
+| `authors` | string[] | list of author IDs (many-to-many) |
 | `bookType` | `PAPER` \| `EBOOK` | required |
 | `eshopUrl` | string | optional — only allowed when `bookType = EBOOK`, hard 400 otherwise |
 | `privateFileKey` | string | optional — blob storage reference, upload API planned |
+| `seriesId` | string | optional — ID of parent Series |
+| `subSeriesId` | string | optional — ID of parent SubSeries |
+| `seriesOrder` | integer | optional — position within the series |
+| `subSeriesOrder` | integer | optional — position within the sub-series |
+
+**Authors**
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET  | `/api/authors` | JWT | List all authors |
+| POST | `/api/authors` | JWT | Create author |
+| GET  | `/api/authors/{id}` | JWT | Get author |
+| DELETE | `/api/authors/{id}` | JWT | Delete author |
+
+**Series**
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET  | `/api/series` | JWT | List all series |
+| POST | `/api/series` | JWT | Create series |
+| GET  | `/api/series/{id}` | JWT | Get series |
+| DELETE | `/api/series/{id}` | JWT | Delete series |
+
+**Sub-series**
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET  | `/api/sub-series` | JWT | List sub-series (filter: `?seriesId=`) |
+| POST | `/api/sub-series` | JWT | Create sub-series (requires `seriesId`) |
+| GET  | `/api/sub-series/{id}` | JWT | Get sub-series |
+| DELETE | `/api/sub-series/{id}` | JWT | Delete sub-series |
 
 ---
 
@@ -252,6 +286,9 @@ Each service has Flyway migrations under `src/main/resources/db/migration/`.
 |  | V2__add_is_default_to_shelves.sql | adds `shelf_type` column |
 | review-service | V1__create_reviews_table.sql | `reviews` |
 | book-service | V1__create_books_table.sql | `books` |
+|  | V2__add_authors_table.sql | `authors`, `book_authors` (join table) |
+|  | V3__add_series_tables.sql | `series`, `sub_series` |
+|  | V4__update_books_table.sql | drops `author` column; adds `original_title`, `series_id`, `sub_series_id`, `series_order`, `sub_series_order` |
 
 ---
 
