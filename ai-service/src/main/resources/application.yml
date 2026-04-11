@@ -1,0 +1,25 @@
+server:
+  port: ${SERVER_PORT:8084}
+
+spring:
+  application:
+    name: ai-service
+
+anthropic:
+  api-key: ${ANTHROPIC_API_KEY:}
+
+book-service:
+  base-url: http://${BOOK_SERVICE_HOST:localhost}:${BOOK_SERVICE_PORT:8083}
+
+grpc:
+  server:
+    port: ${GRPC_PORT:9094}
+  client:
+    user-service:
+      address: static://${USER_SERVICE_GRPC_HOST:localhost}:${USER_SERVICE_GRPC_PORT:9090}
+      negotiation-type: plaintext
+
+logging:
+  level:
+    com.bookshelf: DEBUG
+    net.devh.boot.grpc: INFO

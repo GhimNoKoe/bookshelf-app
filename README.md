@@ -5,49 +5,52 @@ A full-stack microservices application for managing a personal book library, she
 ## Architecture
 
 ```
-┌──────────────────────────────────────────────────────────────┐
-│                        react-frontend                         │
-│               Vite + React 18 + TypeScript                   │
-│                    nginx reverse-proxy                        │
-└──────┬───────────┬──────────────┬──────────────┬────────────┘
-       │ REST      │ REST         │ REST         │ REST
-┌──────▼──┐  ┌─────▼──┐   ┌──────▼──┐   ┌──────▼──┐
-│  user-  │  │ shelf-  │   │ review- │   │  book-  │
-│ service │  │ service │   │ service │   │ service │
-│  :8080  │  │  :8081  │   │  :8082  │   │  :8083  │
-│  gRPC   │  │  gRPC   │   │  gRPC   │   │  gRPC   │
-│  :9090  │  │  :9091  │   │  :9092  │   │  :9093  │
-└────┬────┘  └────┬────┘   └────┬────┘   └─────────┘
-     │            │  gRPC        │ gRPC
-     │            └──────────────┤
-     │                           │ (token validation, shelf check)
-     └───────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────┐
+│                           react-frontend                              │
+│                  Vite + React 18 + TypeScript                        │
+│                       nginx reverse-proxy                             │
+└──────┬───────────┬──────────────┬──────────────┬──────────┬─────────┘
+       │ REST      │ REST         │ REST         │ REST     │ REST
+┌──────▼──┐  ┌─────▼──┐   ┌──────▼──┐   ┌──────▼──┐  ┌───▼────┐
+│  user-  │  │ shelf-  │   │ review- │   │  book-  │  │  ai-   │
+│ service │  │ service │   │ service │   │ service │  │service │
+│  :8080  │  │  :8081  │   │  :8082  │   │  :8083  │  │  :8084 │
+│  gRPC   │  │  gRPC   │   │  gRPC   │   │  gRPC   │  │  gRPC  │
+│  :9090  │  │  :9091  │   │  :9092  │   │  :9093  │  │  :9094 │
+└────┬────┘  └────┬────┘   └────┬────┘   └─────────┘  └───┬────┘
+     │            │  gRPC        │ gRPC                     │ gRPC
+     │            └──────────────┤                          │ (token validation)
+     │                           │ (token validation,       │
+     │                           │  shelf check)            │ REST (catalog ops)
+     └───────────────────────────┴──────────────────────────┘
 ┌────┴────┐  ┌────────┐   ┌────────┐   ┌────────┐
 │postgres │  │postgres│   │postgres│   │postgres│
 │  :5433  │  │  :5434 │   │  :5435 │   │  :5436 │
 └─────────┘  └────────┘   └────────┘   └────────┘
+                                          (ai-service has no DB)
 ```
 
 ### Services
 
-| Service        | Port (HTTP) | Port (gRPC) | Responsibility                        |
-|----------------|-------------|-------------|---------------------------------------|
-| user-service   | 8080        | 9090        | Auth (JWT), user CRUD                 |
-| shelf-service  | 8081        | 9091        | Shelf + book-list management          |
-| review-service | 8082        | 9092        | Book reviews (verified-reader badge)  |
-| book-service   | 8083        | 9093        | Book catalog (shared pool, ownership) |
-| react-frontend | 3000 / 80   | —           | SPA + nginx proxy                     |
+| Service        | Port (HTTP) | Port (gRPC) | Responsibility                                          |
+|----------------|-------------|-------------|---------------------------------------------------------|
+| user-service   | 8080        | 9090        | Auth (JWT), user CRUD                                   |
+| shelf-service  | 8081        | 9091        | Shelf + book-list management                            |
+| review-service | 8082        | 9092        | Book reviews (verified-reader badge)                    |
+| book-service   | 8083        | 9093        | Book catalog (shared pool, ownership)                   |
+| ai-service     | 8084        | 9094        | Natural-language catalog management via Claude API      |
+| react-frontend | 3000 / 80   | —           | SPA + nginx proxy                                       |
 
 ### gRPC contracts
 
 Proto files live in `proto/` (canonical) and are copied into each service's `src/main/proto/`.
 
-| Proto          | Served by      | Called by                                   |
-|----------------|----------------|---------------------------------------------|
-| `user.proto`   | user-service   | shelf-service, review-service, book-service |
-| `shelf.proto`  | shelf-service  | review-service                              |
-| `review.proto` | review-service | —                                           |
-| `book.proto`   | book-service   | — (future: shelf-service, review-service)   |
+| Proto          | Served by      | Called by                                            |
+|----------------|----------------|------------------------------------------------------|
+| `user.proto`   | user-service   | shelf-service, review-service, book-service, ai-service |
+| `shelf.proto`  | shelf-service  | review-service                                       |
+| `review.proto` | review-service | —                                                    |
+| `book.proto`   | book-service   | — (future: shelf-service, review-service)            |
 
 ### Inter-service gRPC calls
 
@@ -55,6 +58,7 @@ Proto files live in `proto/` (canonical) and are copied into each service's `src
 - `review-service` → `user-service` to validate JWT tokens
 - `review-service` → `shelf-service` to check whether a book is on a user's shelf (verified-reader badge)
 - `book-service` → `user-service` to validate JWT tokens
+- `ai-service` → `user-service` to validate JWT tokens
 
 ---
 
@@ -72,6 +76,7 @@ docker compose up --build
 | http://localhost:8081                 | shelf-service REST  |
 | http://localhost:8082                 | review-service REST |
 | http://localhost:8083                 | book-service REST   |
+| http://localhost:8084                 | ai-service REST     |
 
 ---
 
@@ -105,7 +110,10 @@ cd review-service && mvn spring-boot:run
 # Terminal 4
 cd book-service && mvn spring-boot:run
 
-# Terminal 5
+# Terminal 5 — requires ANTHROPIC_API_KEY
+ANTHROPIC_API_KEY=sk-ant-... cd ai-service && mvn spring-boot:run
+
+# Terminal 6
 cd react-frontend && npm install && npm run dev
 ```
 
@@ -117,6 +125,7 @@ The Vite dev-server proxies `/api/*` to the correct back-end service automatical
 | `/api/shelves`                | shelf-service :8081 |
 | `/api/reviews`                | review-service :8082 |
 | `/api/books`, `/api/authors`  | book-service :8083  |
+| `/api/ai`                     | ai-service :8084    |
 
 ---
 
@@ -219,6 +228,35 @@ Reviews are automatically tagged as **verified reader** when the book is present
 | GET    | `/api/sub-series/{id}`  | JWT  | Get sub-series                           |
 | DELETE | `/api/sub-series/{id}`  | JWT  | Delete sub-series                        |
 
+### ai-service (`/api/ai`)
+
+Accepts natural-language commands and executes them against the book catalog using Claude's tool-use API.
+
+| Method | Path               | Auth | Description                        |
+|--------|--------------------|------|------------------------------------|
+| POST   | `/api/ai/command`  | JWT  | Execute a natural-language command |
+
+**Request:**
+```json
+{ "prompt": "Add Terry Pratchett as an author, create the Discworld series, and add The Colour of Magic as book 1" }
+```
+
+**Response:**
+```json
+{
+  "result": "Done. Created author Terry Pratchett, series Discworld, and book The Colour of Magic.",
+  "actionsPerformed": [
+    "Created author: Terry Pratchett (id: a1)",
+    "Created series: Discworld (id: s1)",
+    "Created book: The Colour of Magic (id: b1)"
+  ]
+}
+```
+
+The service runs an agentic loop: Claude receives the prompt and a set of tools (`create_author`, `create_series`, `create_sub_series`, `create_book`), decides which to call, the service executes them against book-service, and results are fed back to Claude until the task is complete.
+
+**Environment variable required:** `ANTHROPIC_API_KEY`
+
 ---
 
 ## Project Structure
@@ -234,6 +272,7 @@ bookshelf-app/
 ├── shelf-service/          # Spring Boot 3 · Java 21 · gRPC server+client
 ├── review-service/         # Spring Boot 3 · Java 21 · gRPC server+client
 ├── book-service/           # Spring Boot 3 · Java 21 · gRPC server+client
+├── ai-service/             # Spring Boot 3 · Java 21 · Claude API · no DB
 ├── react-frontend/         # Vite · React 18 · TypeScript
 │   └── src/
 │       ├── api/
@@ -252,15 +291,17 @@ bookshelf-app/
 
 ### Key libraries
 
-| Library                    | Version        | Purpose                    |
-|----------------------------|----------------|----------------------------|
-| Spring Boot                | 3.2.3          | Application framework      |
-| grpc-spring-boot-starter   | 3.1.0.RELEASE  | gRPC integration           |
-| protobuf-java              | 3.25.2         | Protocol Buffers           |
-| jjwt                       | 0.12.5         | JWT (user-service)         |
-| Flyway                     | (managed)      | DB migrations              |
-| H2                         | (managed)      | In-memory DB for tests     |
-| TanStack Query             | 5              | Data fetching (frontend)   |
+| Library                    | Version        | Purpose                                      |
+|----------------------------|----------------|----------------------------------------------|
+| Spring Boot                | 3.2.3          | Application framework                        |
+| grpc-spring-boot-starter   | 3.1.0.RELEASE  | gRPC integration                             |
+| protobuf-java              | 3.25.2         | Protocol Buffers                             |
+| jjwt                       | 0.12.5         | JWT (user-service)                           |
+| Flyway                     | (managed)      | DB migrations                                |
+| H2                         | (managed)      | In-memory DB for tests                       |
+| anthropic-java             | 2.17.0         | Claude API SDK (ai-service)                  |
+| jsonschema-generator       | 4.38.0         | JSON schema from annotated classes (ai-service) |
+| TanStack Query             | 5              | Data fetching (frontend)                     |
 
 ---
 
@@ -273,6 +314,7 @@ cd user-service   && mvn test
 cd shelf-service  && mvn test
 cd review-service && mvn test
 cd book-service   && mvn test
+cd ai-service     && mvn test
 ```
 
 ### Test stack
@@ -293,14 +335,17 @@ Each service has two layers of tests:
 
 **Controller / integration tests** — `@SpringBootTest` + `@AutoConfigureMockMvc` + H2. The full Spring context loads (security, filters, real service + repository layers). Only external gRPC calls are mocked:
 
-| Service        | Mocked in controller tests                                                      |
-|----------------|---------------------------------------------------------------------------------|
-| user-service   | nothing — JWT is validated locally                                              |
-| shelf-service  | `UserGrpcClient` (token validation)                                             |
-| review-service | `UserGrpcClient` (token validation), `ShelfGrpcClient` (verified-reader check)  |
-| book-service   | `UserGrpcClient` (token validation)                                             |
+| Service        | Mocked in controller tests                                                          |
+|----------------|-------------------------------------------------------------------------------------|
+| user-service   | nothing — JWT is validated locally                                                  |
+| shelf-service  | `UserGrpcClient` (token validation)                                                 |
+| review-service | `UserGrpcClient` (token validation), `ShelfGrpcClient` (verified-reader check)      |
+| book-service   | `UserGrpcClient` (token validation)                                                 |
+| ai-service     | `UserGrpcClient` (token validation), `ClaudeAgentService` (no real API calls in tests) |
 
 Tests are `@Transactional` — each test rolls back automatically, no manual cleanup needed.
+
+> **ai-service exception:** ai-service has no database. Its `ClaudeAgentServiceImplTest` is a pure Mockito unit test (`@ExtendWith(MockitoExtension.class)`), not a `@SpringBootTest`. No H2 or Flyway involved.
 
 ### TDD rules
 
@@ -359,6 +404,10 @@ USER_SERVICE_GRPC_HOST, USER_SERVICE_GRPC_PORT
 
 # review-service only
 SHELF_SERVICE_GRPC_HOST, SHELF_SERVICE_GRPC_PORT
+
+# ai-service only
+ANTHROPIC_API_KEY        # Anthropic API key (required)
+BOOK_SERVICE_HOST, BOOK_SERVICE_PORT   # default: localhost:8083
 ```
 
 > **Production note:** Replace the default `JWT_SECRET` with a strong random key. All gRPC channels use plaintext by default — add TLS for production deployments.

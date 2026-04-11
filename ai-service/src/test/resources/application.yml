@@ -1,0 +1,24 @@
+server:
+  port: 0
+
+spring:
+  application:
+    name: ai-service-test
+
+anthropic:
+  api-key: test-key
+
+book-service:
+  base-url: http://localhost:8083
+
+grpc:
+  server:
+    port: 0
+  client:
+    user-service:
+      address: static://localhost:9090
+      negotiation-type: plaintext
+
+logging:
+  level:
+    com.bookshelf: DEBUG

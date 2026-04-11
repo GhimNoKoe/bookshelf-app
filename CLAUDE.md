@@ -2,6 +2,15 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Session Resume
+
+When the user says **"resume"**, **"continue"**, **"what's next?"**, or similar:
+1. Call `TaskList` to see current task statuses
+2. Read the files most relevant to the next pending task before touching any code
+3. State what you are about to do and begin
+
+Never start coding on a resumed session without checking the task list first.
+
 ## Code Style
 
 - Always use `{}` braces for `if`, `else`, `for`, `while` — even single-line bodies
@@ -17,19 +26,23 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Architecture Overview
 
-This is a microservices bookshelf application with three Java Spring Boot backend services, a React TypeScript frontend, and three separate PostgreSQL databases.
+This is a microservices bookshelf application with five Java Spring Boot backend services, a React TypeScript frontend, and four separate PostgreSQL databases.
 
 ```
 React Frontend (Vite/TS) — port 3000
   └─> REST APIs
         ├─> user-service   (REST :8080, gRPC :9090)  ─> postgres-user  (:5433)
         ├─> shelf-service  (REST :8081, gRPC :9091)  ─> postgres-shelf (:5434)
-        └─> review-service (REST :8082, gRPC :9092)  ─> postgres-review(:5435)
+        ├─> review-service (REST :8082, gRPC :9092)  ─> postgres-review(:5435)
+        ├─> book-service   (REST :8083, gRPC :9093)  ─> postgres-book  (:5436)
+        └─> ai-service     (REST :8084, gRPC :9094)  ─> (no database)
 ```
 
 **Inter-service gRPC calls:**
 - `shelf-service` → calls `user-service` to validate JWT tokens
 - `review-service` → calls both `user-service` (JWT validation) and `shelf-service` (verify book on user's shelf for "verified reader" badge)
+- `book-service` → calls `user-service` to validate JWT tokens
+- `ai-service` → calls `user-service` to validate JWT tokens; calls `book-service` via REST to create authors, series, sub-series, and books
 
 **Proto contracts** live in `/proto/` and are compiled into each service during Maven build via `protobuf-maven-plugin`.
 
@@ -43,18 +56,20 @@ For local development with hot-reload, start databases via Docker then run servi
 
 ```bash
 # Start only databases
-docker compose up -d postgres-user postgres-shelf postgres-review
+docker compose up -d postgres-user postgres-shelf postgres-review postgres-book
 
 # Each in its own terminal
 cd user-service   && mvn spring-boot:run
 cd shelf-service  && mvn spring-boot:run
 cd review-service && mvn spring-boot:run
+cd book-service   && mvn spring-boot:run
+ANTHROPIC_API_KEY=sk-ant-... cd ai-service && mvn spring-boot:run
 cd react-frontend && npm install && npm run dev
 ```
 
-## Java Services (user-service, shelf-service, review-service)
+## Java Services (user-service, shelf-service, review-service, book-service, ai-service)
 
-All three are Spring Boot 3.2.3 / Java 21 / Maven projects with identical build commands.
+All five are Spring Boot 3.2.3 / Java 21 / Maven projects with identical build commands.
 
 ```bash
 mvn clean package -DskipTests   # build JAR
@@ -72,13 +87,15 @@ npm run build    # production build to dist/
 npx tsc          # type-check only
 ```
 
-The Vite dev server proxies `/api/auth` → `:8080`, `/api/shelves` → `:8081`, `/api/reviews` → `:8082`. In Docker, Nginx handles this routing.
+The Vite dev server proxies `/api/auth` → `:8080`, `/api/shelves` → `:8081`, `/api/reviews` → `:8082`, `/api/books` → `:8083`, `/api/ai` → `:8084`. In Docker, Nginx handles this routing.
 
 ## Key Patterns
 
 **Authentication flow:** user-service issues JWT tokens (24h expiry). All protected endpoints in shelf-service and review-service validate tokens by making a gRPC call to user-service's `ValidateToken` RPC — there is no shared secret between services; validation is always delegated to user-service.
 
 **Verified reader badge:** When creating a review, review-service calls shelf-service via gRPC to check whether the book exists on any of the user's shelves. The `verified_reader` boolean on the `reviews` table records this at write time.
+
+**ai-service pattern:** No database — pure orchestrator. Receives a natural-language prompt, runs an agentic loop with Claude (claude-opus-4-6), calls book-service REST endpoints via `BookServiceClient`, and returns a structured `AiCommandResponse`. Tools are defined as annotated inner record classes in `BookshelfTools` — use `@JsonTypeName` for tool name, `@JsonClassDescription` for description, `@JsonPropertyDescription` for field descriptions. No `@JsonProperty` needed on record fields if the Java name matches the desired JSON key.
 
 **Database migrations:** Flyway manages schema in each service under `src/main/resources/db/migration/`. Each service has exactly one migration file (`V1__create_*.sql`) at the time of writing.
 
@@ -90,9 +107,11 @@ The Vite dev server proxies `/api/auth` → `:8080`, `/api/shelves` → `:8081`,
 |---|---|---|
 | `JWT_SECRET` | base64 key in compose file | Replace in production |
 | `JWT_EXPIRATION` | `86400000` | 24 hours in ms |
-| `GRPC_PORT` | 9090 / 9091 / 9092 | per service |
+| `GRPC_PORT` | 9090 / 9091 / 9092 / 9093 / 9094 | per service |
 | `DB_*` | per service | host, port, name, user, pass |
-| `USER_SERVICE_GRPC_HOST/PORT` | `user-service` / `9090` | used by shelf & review |
+| `USER_SERVICE_GRPC_HOST/PORT` | `user-service` / `9090` | used by shelf, review, book, ai |
 | `SHELF_SERVICE_GRPC_HOST/PORT` | `shelf-service` / `9091` | used by review only |
+| `ANTHROPIC_API_KEY` | — | required by ai-service |
+| `BOOK_SERVICE_HOST/PORT` | `localhost` / `8083` | used by ai-service |
 
 gRPC connections use plaintext (no TLS).
